@@ -44,6 +44,7 @@ def scheduler() -> None:
     stats_logger.incr("reports.scheduler")
 
     if not is_feature_enabled("ALERT_REPORTS"):
+        logger.info("Alert reports feature is not enabled. Exiting scheduler")
         return
     active_schedules = ReportScheduleDAO.find_active()
     triggered_at = (
@@ -57,31 +58,34 @@ def scheduler() -> None:
             triggered_at, active_schedule.crontab, active_schedule.timezone
         ):
             logger.info("Scheduling alert %s eta: %s", active_schedule.name, schedule)
-            async_options = {"eta": schedule}
-            if (
-                active_schedule.working_timeout is not None
-                and app.config["ALERT_REPORTS_WORKING_TIME_OUT_KILL"]
-            ):
-                async_options["time_limit"] = (
-                    active_schedule.working_timeout
-                    + app.config["ALERT_REPORTS_WORKING_TIME_OUT_LAG"]
-                )
-                async_options["soft_time_limit"] = (
-                    active_schedule.working_timeout
-                    + app.config["ALERT_REPORTS_WORKING_SOFT_TIME_OUT_LAG"]
-                )
-            execute.apply_async((active_schedule.id,), **async_options)
+            async_options = {}
+            # if (
+            #     active_schedule.working_timeout is not None
+            #     and app.config["ALERT_REPORTS_WORKING_TIME_OUT_KILL"]
+            # ):
+            #     async_options["time_limit"] = (
+            #         active_schedule.working_timeout
+            #         + app.config["ALERT_REPORTS_WORKING_TIME_OUT_LAG"]
+            #     )
+            #     async_options["soft_time_limit"] = (
+            #         active_schedule.working_timeout
+            #         + app.config["ALERT_REPORTS_WORKING_SOFT_TIME_OUT_LAG"]
+            #     )
+            logger.info("GOING TO EXECUTE %s", active_schedule.id)
+            execute.delay(
+                (active_schedule.id,), scheduled_dttm=schedule, **async_options
+            )
 
 
 @celery_app.task(name="reports.execute", bind=True)
-def execute(self: Celery.task, report_schedule_id: int) -> None:
+def execute(self: Celery.task, report_schedule_id: int, scheduled_dttm) -> None:
+    logger.info("RECEIVED TASK %s", report_schedule_id)
     stats_logger: BaseStatsLogger = app.config["STATS_LOGGER"]
     stats_logger.incr("reports.execute")
 
     task_id = None
     try:
         task_id = execute.request.id
-        scheduled_dttm = execute.request.eta
         logger.info(
             "Executing alert/report, task id: %s, scheduled_dttm: %s",
             task_id,

@@ -33,6 +33,7 @@ def cron_schedule_window(
     window_size = app.config["ALERT_REPORTS_CRON_WINDOW_SIZE"]
     try:
         tz = pytz_timezone(timezone)
+        logger.info("Using tz %s with timezone %s", tz, timezone)
     except UnknownTimeZoneError:
         # fallback to default timezone
         tz = pytz_timezone("UTC")
@@ -42,9 +43,15 @@ def cron_schedule_window(
     time_now = triggered_at.astimezone(tz)
     start_at = time_now - timedelta(seconds=window_size / 2)
     stop_at = time_now + timedelta(seconds=window_size / 2)
+    logger.info("Time now: %s, start at: %s, stop at: %s", time_now, start_at, stop_at)
     crons = croniter(cron, start_at)
     for schedule in crons.all_next(datetime):
         if schedule >= stop_at:
             break
         # convert schedule back to utc
-        yield schedule.astimezone(utc).replace(tzinfo=None)
+        logger.info(
+            "Yielding schedule: %s, converted: %s",
+            schedule,
+            schedule.astimezone(utc).replace(tzinfo=None),
+        )
+        yield schedule

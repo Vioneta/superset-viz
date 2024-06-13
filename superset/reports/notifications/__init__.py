@@ -14,10 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import logging
+
 from superset.reports.models import ReportRecipients
 from superset.reports.notifications.base import BaseNotification, NotificationContent
 from superset.reports.notifications.email import EmailNotification  # noqa: F401
 from superset.reports.notifications.slack import SlackNotification  # noqa: F401
+from superset.reports.notifications.slackv2 import SlackV2Notification  # noqa: F401
+
+logger = logging.getLogger(__name__)
 
 
 def create_notification(
@@ -28,6 +33,8 @@ def create_notification(
     Returns the Notification class for the recipient type
     """
     for plugin in BaseNotification.plugins:
+        logger.warning(f"plugin.type: {plugin.type}")
+        logger.warning(f"recipient.type: {recipient.type}")
         if plugin.type == recipient.type:
             return plugin(recipient, notification_content)
     raise Exception(  # pylint: disable=broad-exception-raised
